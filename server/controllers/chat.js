@@ -14,26 +14,64 @@ const addUser = (username) => {
 };
 
 const chat = (io) => {
+    // middleware
+    io.use((socket, next) => {
+        const username = socket.handshake.auth.username;
+        if (!username) {
+            return next(new Error('Invalid Username'));
+        }
+        socket.username = username;
+        next();
+    });
+
     io.on("connection", (socket) => {
-        console.log("SOCKET ID:", socket.id);
-        socket.on('username', (username, next) => {
-            let result = addUser(username);
-            if (result.error) {
-                return next(result.error);
+        // console.log("SOCKET ID:", socket.id);
+        // socket.on('username', (username, next) => {
+        //     let result = addUser(username);
+        //     if (result.error) {
+        //         return next(result.error);
+        //     } else {
+        //         io.emit('users', users);
+        //         socket.broadcast.emit('User joined', `${username} has joined the chatroom`);
+        //     }
+        // });
+
+        let users = [];
+        for (let [id, socket] of io.of("/").sockets) {
+            const existingUser = users.find((u) => u.username === socket.username);
+            if (existingUser) {
+                socket.emit('username is already taken!');
+                socket.disconnect();
+                return;
             } else {
-                io.emit('users', users);
-                socket.broadcast.emit('User joined', `${username} has joined the chatroom`);
+                users.push({
+                    userID: id,
+                    username: socket.username
+                });
             }
+        }
+
+        socket.emit('users', users);
+
+        // notify existing users on new user join
+        socket.broadcast.emit('User Connected', {
+            userID: socket.id,
+            username: socket.username
         });
 
         // message
-        socket.on("message", (message) => {
-            io.emit("message", message);
+        socket.on("message", (data) => {
+            io.emit("message", data);
+        });
+
+        // typing
+        socket.on("typing", (username) => {
+            socket.broadcast.emit('typing', `${username} typing...`);
         });
 
         // disconnect
         socket.on("disconnect", () => {
-            console.log("User Disconnected");
+            socket.broadcast.emit('user disconnected', socket.id);
         });
     });
 };
