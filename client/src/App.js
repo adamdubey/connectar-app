@@ -18,6 +18,7 @@ function App() {
   const [users, setUsers] = useState([]);
   const [typing, setTyping] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
+  const [privateMessage, setPrivateMessage] = useState('');
 
   useEffect(() => {
     socket.on('User Joined', (msg) => {
@@ -109,11 +110,13 @@ function App() {
 
   const handleMessage = (e) => {
     e.preventDefault();
+
     socket.emit('message', {
       id: Date.now(),
       name: username,
       message
     });
+
     setMessage('');
   };
 
@@ -134,6 +137,35 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    socket.on('private message', ({ message, from }) => {
+      const allUsers = users;
+      let index = allUsers.findIndex((u) => u.userID === from);
+      let foundUser = allUsers[index];
+
+      foundUser.messages.push({
+        message,
+        fromSelf: false
+      });
+
+      if (foundUser) {
+        if (selectedUser) {
+          if (foundUser.userID !== selectedUser.userID) {
+            foundUser.hasNewMessages = true;
+          }
+        } else {
+          foundUser.hasNewMessages = true;
+        };
+          allUsers[index] = foundUser;
+          setUsers([ ...allUsers ]);
+      };
+    });
+
+    return () => {
+      socket.off('private message');
+    };
+  }, [users]);
+
   const handleUsernameClick = user => {
     if (user.self || !user.connected) return;
     setSelectedUser({ ...user, hasNewMessages: false });
@@ -147,6 +179,27 @@ function App() {
     setUsers([ ...allUsers ]);
   };
 
+  const handlePrivateMessage = e => {
+    e.preventDefault();
+
+    if (selectedUser) {
+      socket.emit('private message', {
+        message: privateMessage,
+        to: selectedUser.userID
+      });
+
+      let updated = selectedUser;
+      updated.messages.push({
+        message: privateMessage,
+        fromSelf: true,
+        hasNewMessages: false
+      });
+
+      setSelectedUser(updated);
+      setPrivateMessage('');
+    };
+  };
+
   return (
     <div className="App">
       <h1>connectar app</h1>
@@ -158,7 +211,10 @@ function App() {
               users.map(
                 (user) =>
                   user.connected && (
-                    <div key={user.userID} onClick={() => handleUsernameClick(user)}>
+                    <div key={user.userID} onClick={() => handleUsernameClick(user)} style={{
+                      textDecoration: selectedUser?.userID == user.userID && 'underline',
+                      cursor: !user.self && 'pointer'
+                    }}>
                       {user.username.charAt(0).toUpperCase() +
                         user.username.slice(1)}{' '}
                       {user.self && '(yourself)'}
@@ -167,6 +223,8 @@ function App() {
                       ) : (
                         <span className="offline-dot"></span>
                       )}
+                      {user.hasNewMessages && <b className="text-danger"> ! </b>}
+                      {user.hasNewMessages && <b className="text-danger">{user.hasNewMessages && user.messages.length}</b>}
                     </div>
                   )
               )}
@@ -241,7 +299,44 @@ function App() {
 
         <br />
 
-        <div className="col-md-6">Private Chat</div>
+        {selectedUser && (
+          <div className="col-md-6">
+            <form onSubmit={handlePrivateMessage} className="text-center pt-3">
+              <div className="row g-3">
+                <div className="col-10">
+                  <input
+                    value={privateMessage}
+                    onChange={(e) => setPrivateMessage(e.target.value)}
+                    type="text"
+                    placeholder="Type your private message"
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="col-2">
+                  <button className="btn btn-secondary" type="submit">
+                    Send
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <br />
+
+            <div className="row pt-3">
+              <div className="col">
+                <ScrollToBottom className={ROOT_CSS}>
+                  {selectedUser && selectedUser.messages && selectedUser.messages.map((msg, index) => <div key={index} className="alert alert-secondary">{msg.fromSelf ? "(yourself)" : selectedUser.username.charAt(0).toUpperCase() + selectedUser.username.slice(1)}{" - "}{msg.message}</div>)}
+                </ScrollToBottom>
+                <br />
+                {typing && typing}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <br />
+
       </div>
     </div>
   </div>

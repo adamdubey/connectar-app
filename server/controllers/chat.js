@@ -69,6 +69,14 @@ const chat = (io) => {
             socket.broadcast.emit('typing', `${username} typing...`);
         });
 
+        // private message
+        socket.on("private message", ({ message, to }) => {
+            socket.to(to).emit("private message", {
+                message,
+                from: socket.id
+            });
+        });
+
         // disconnect
         socket.on("disconnect", () => {
             socket.broadcast.emit('user disconnected', socket.id);
