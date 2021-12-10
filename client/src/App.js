@@ -1,57 +1,56 @@
-import { css } from '@emotion/css';
-import { useState, useEffect } from 'react';
-import ScrollToBottom from 'react-scroll-to-bottom';
-import socket from './socket';
-import toast, { Toaster } from 'react-hot-toast';
-import './App.css';
+import { useState, useEffect } from "react";
+import socket from "./socket";
+import toast, { Toaster } from "react-hot-toast";
+import ScrollToBottom from "react-scroll-to-bottom";
+import { css } from "@emotion/css";
 
 const ROOT_CSS = css({
   height: 650,
-  width: window.innerWidth / 2
+  width: "100%",
 });
 
 function App() {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState("");
   const [connected, setConnected] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
-  const [typing, setTyping] = useState('');
+  const [typing, setTyping] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
-  const [privateMessage, setPrivateMessage] = useState('');
+  const [privateMessage, setPrivateMessage] = useState("");
 
   useEffect(() => {
-    socket.on('User Joined', (msg) => {
-      console.log('User joined msg', msg);
+    socket.on("user joined", (msg) => {
+      //console.log("user joined message", msg);
     });
 
-    socket.on('message', (data) => {
+    socket.on("message", (data) => {
       setMessages((previousMessages) => [
         ...previousMessages,
         {
           id: data.id,
           name: data.name,
-          message: data.message
-        }
+          message: data.message,
+        },
       ]);
     });
 
     return () => {
-      socket.off('User Joined');
-      socket.off('message');
+      socket.off("user joined");
+      socket.off("message");
     };
   }, []);
 
   useEffect(() => {
-    socket.on('User Connected', (user) => {
+    socket.on("user connected", (user) => {
       user.connected = true;
       user.messages = [];
       user.hasNewMessages = false;
       setUsers((prevUsers) => [...prevUsers, user]);
-      toast.success(`${user.username} has joined the chatroom!`);
+      toast.success(`${user.username} joined`);
     });
 
-    socket.on('users', (users) => {
+    socket.on("users", (users) => {
       users.forEach((user) => {
         user.self = user.userID === socket.id;
         user.connected = true;
@@ -69,83 +68,84 @@ function App() {
       setUsers(sorted);
     });
 
-    socket.on('username taken', () => {
-      toast.error('Username is already taken!');
+    socket.on("username taken", () => {
+      toast.error("Username taken");
     });
 
     return () => {
-      socket.off('users');
-      socket.off('user connected');
-      socket.off('username taken');
+      socket.off("users");
+      socket.off("user connected");
+      socket.off("username taken");
     };
   }, [socket]);
 
   useEffect(() => {
-    socket.on('user disconnected', (id) => {
+    socket.on("user disconnected", (id) => {
       let allUsers = users;
+
       let index = allUsers.findIndex((el) => el.userID === id);
       let foundUser = allUsers[index];
-
       foundUser.connected = false;
+
       allUsers[index] = foundUser;
       setUsers([...allUsers]);
-
-      toast.error(`${foundUser.username} has left the chatroom!`);
+      toast.error(`${foundUser.username} left`);
     });
 
     return () => {
-      socket.off('user disconnected');
+      socket.off("user disconnected");
     };
   }, [users, socket]);
 
   const handleUsername = (e) => {
     e.preventDefault();
-    socket.emit('username', username);
     socket.auth = { username };
     socket.connect();
+
     setTimeout(() => {
-      setConnected(true);
-    }, 300);
+      if (socket.connected) {
+        // console.log("socket.connected", socket);
+        setConnected(true);
+      }
+    }, 1000);
   };
 
   const handleMessage = (e) => {
     e.preventDefault();
-
-    socket.emit('message', {
+    socket.emit("message", {
       id: Date.now(),
       name: username,
-      message
+      message,
     });
-
-    setMessage('');
+    setMessage("");
   };
 
   if (message) {
-    socket.emit('typing', username);
-  };
+    socket.emit("typing", username);
+  }
 
   useEffect(() => {
-    socket.on('typing', data => {
+    socket.on("typing", (data) => {
       setTyping(data);
       setTimeout(() => {
-        setTyping('');
+        setTyping("");
       }, 1000);
     });
-    
+
     return () => {
-      socket.off('typing');
+      socket.off("typing");
     };
   }, []);
 
   useEffect(() => {
-    socket.on('private message', ({ message, from }) => {
+    socket.on("private message", ({ message, from }) => {
       const allUsers = users;
       let index = allUsers.findIndex((u) => u.userID === from);
       let foundUser = allUsers[index];
 
       foundUser.messages.push({
         message,
-        fromSelf: false
+        fromSelf: false,
       });
 
       if (foundUser) {
@@ -155,18 +155,19 @@ function App() {
           }
         } else {
           foundUser.hasNewMessages = true;
-        };
-          allUsers[index] = foundUser;
-          setUsers([ ...allUsers ]);
-      };
+        }
+
+        allUsers[index] = foundUser;
+        setUsers([...allUsers]);
+      }
     });
 
     return () => {
-      socket.off('private message');
+      socket.off("private message");
     };
   }, [users]);
 
-  const handleUsernameClick = user => {
+  const handleUsernameClick = (user) => {
     if (user.self || !user.connected) return;
     setSelectedUser({ ...user, hasNewMessages: false });
 
@@ -176,60 +177,38 @@ function App() {
     foundUser.hasNewMessages = false;
 
     allUsers[index] = foundUser;
-    setUsers([ ...allUsers ]);
+    setUsers([...allUsers]);
   };
 
-  const handlePrivateMessage = e => {
+  const handlePrivateMessage = (e) => {
     e.preventDefault();
-
     if (selectedUser) {
-      socket.emit('private message', {
+      socket.emit("private message", {
         message: privateMessage,
-        to: selectedUser.userID
+        to: selectedUser.userID,
       });
 
       let updated = selectedUser;
       updated.messages.push({
         message: privateMessage,
         fromSelf: true,
-        hasNewMessages: false
+        hasNewMessages: false,
       });
-
       setSelectedUser(updated);
-      setPrivateMessage('');
-    };
+      setPrivateMessage("");
+    }
   };
 
   return (
-    <div className="App">
-      <h1>connectar app</h1>
-      <div className="container text-center">
-        <Toaster />
-        <div className="row">
-          <div className="d-flex justify-conent-evenly pt-2 pb-1">
-            {connected &&
-              users.map(
-                (user) =>
-                  user.connected && (
-                    <div key={user.userID} onClick={() => handleUsernameClick(user)} style={{
-                      textDecoration: selectedUser?.userID == user.userID && 'underline',
-                      cursor: !user.self && 'pointer'
-                    }}>
-                      {user.username.charAt(0).toUpperCase() +
-                        user.username.slice(1)}{' '}
-                      {user.self && '(yourself)'}
-                      {user.connected ? (
-                        <span className="online-dot"></span>
-                      ) : (
-                        <span className="offline-dot"></span>
-                      )}
-                      {user.hasNewMessages && <b className="text-danger"> ! </b>}
-                      {user.hasNewMessages && <b className="text-danger">{user.hasNewMessages && user.messages.length}</b>}
-                    </div>
-                  )
-              )}
-          </div>
-        </div>
+    <div className="container-fluid">
+      <Toaster />
+      <div className="row bg-primary text-center">
+        <h1 className="fw-bold pt-2 text-light">
+          CONNECTAR App
+        </h1>
+        <br />
+        <p className="lead text-light">Public/Private Chat App</p>
+      </div>
 
       {!connected && (
         <div className="row">
@@ -256,8 +235,37 @@ function App() {
       )}
 
       <div className="row">
+        <div className="col-md-2 pt-3">
+          {connected &&
+            users.map((user) => (
+              <div
+                key={user.userID}
+                onClick={() => handleUsernameClick(user)}
+                style={{
+                  textDecoration:
+                    selectedUser?.userID == user.userID && "underline",
+                  cursor: !user.self && "pointer",
+                }}
+              >
+                {user.username.charAt(0).toUpperCase() + user.username.slice(1)}{" "}
+                {user.self && "(yourself)"}{" "}
+                {user.connected ? (
+                  <span className="online-dot"></span>
+                ) : (
+                  <span className="offline-dot"></span>
+                )}
+                {user.hasNewMessages && <b className="text-danger"> ! </b>}
+                {user.hasNewMessages && (
+                  <b className="text-danger">
+                    {user.hasNewMessages && user.messages.length}
+                  </b>
+                )}
+              </div>
+            ))}
+        </div>
+
         {connected && (
-          <div className="col-md-6">
+          <div className="col-md-5">
             <form onSubmit={handleMessage} className="text-center pt-3">
               <div className="row g-3">
                 <div className="col-10">
@@ -265,7 +273,7 @@ function App() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     type="text"
-                    placeholder="Type your message"
+                    placeholder="Type your message (public)"
                     className="form-control"
                   />
                 </div>
@@ -280,19 +288,17 @@ function App() {
 
             <br />
 
-            <div className="row pt-3">
-              <div className="col">
-                <ScrollToBottom className={ROOT_CSS}>
+            <div className="col">
+              <ScrollToBottom className={ROOT_CSS}>
                 {messages.map((m) => (
                   <div className="alert alert-secondary" key={m.id}>
-                    {m.name.charAt(0).toUpperCase() + m.name.slice(1)} -{' '}
+                    {m.name.charAt(0).toUpperCase() + m.name.slice(1)} -{" "}
                     {m.message}
                   </div>
                 ))}
-                </ScrollToBottom>
-                <br />
-                {typing && typing}
-              </div>
+              </ScrollToBottom>
+              <br />
+              {typing && typing}
             </div>
           </div>
         )}
@@ -300,7 +306,7 @@ function App() {
         <br />
 
         {selectedUser && (
-          <div className="col-md-6">
+          <div className="col-md-5">
             <form onSubmit={handlePrivateMessage} className="text-center pt-3">
               <div className="row g-3">
                 <div className="col-10">
@@ -308,7 +314,7 @@ function App() {
                     value={privateMessage}
                     onChange={(e) => setPrivateMessage(e.target.value)}
                     type="text"
-                    placeholder="Type your private message"
+                    placeholder="Type your message (private)"
                     className="form-control"
                   />
                 </div>
@@ -323,23 +329,29 @@ function App() {
 
             <br />
 
-            <div className="row pt-3">
-              <div className="col">
-                <ScrollToBottom className={ROOT_CSS}>
-                  {selectedUser && selectedUser.messages && selectedUser.messages.map((msg, index) => <div key={index} className="alert alert-secondary">{msg.fromSelf ? "(yourself)" : selectedUser.username.charAt(0).toUpperCase() + selectedUser.username.slice(1)}{" - "}{msg.message}</div>)}
-                </ScrollToBottom>
-                <br />
-                {typing && typing}
-              </div>
+            <div className="col">
+              <ScrollToBottom className={ROOT_CSS}>
+                {selectedUser &&
+                  selectedUser.messages &&
+                  selectedUser.messages.map((msg, index) => (
+                    <div key={index} className="alert alert-secondary">
+                      {msg.fromSelf
+                        ? "(yourself)"
+                        : selectedUser.username.charAt(0).toUpperCase() +
+                          selectedUser.username.slice(1)}{" "}
+                      {" - "}
+                      {msg.message}
+                    </div>
+                  ))}
+              </ScrollToBottom>
+              <br />
+              {typing && typing}
             </div>
           </div>
         )}
-
         <br />
-
       </div>
     </div>
-  </div>
   );
 }
 

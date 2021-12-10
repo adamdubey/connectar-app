@@ -27,7 +27,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Rest API
 app.get('/api', (req, res) => {
-    res.send('Ahoy from REST API!');
+    res.send('Ahoy from CONNECTAR REST API!');
 });
 
 // Socket

@@ -25,17 +25,6 @@ const chat = (io) => {
     });
 
     io.on("connection", (socket) => {
-        // console.log("SOCKET ID:", socket.id);
-        // socket.on('username', (username, next) => {
-        //     let result = addUser(username);
-        //     if (result.error) {
-        //         return next(result.error);
-        //     } else {
-        //         io.emit('users', users);
-        //         socket.broadcast.emit('User joined', `${username} has joined the chatroom`);
-        //     }
-        // });
-
         let users = [];
         for (let [id, socket] of io.of("/").sockets) {
             const existingUser = users.find((u) => u.username === socket.username);
